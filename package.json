@@ -1,0 +1,22 @@
+{
+  "name": "book-source-rules",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/jsdom": "^21.1.5",
+    "typescript": "^5.2.2"
+  },
+  "dependencies": {
+    "jsdom": "^22.1.0",
+    "jsonpath": "^1.1.1",
+    "node-fetch": "^3.3.2",
+    "xpath": "^0.0.33"
+  }
+}
