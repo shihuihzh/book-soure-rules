@@ -1,3 +1,29 @@
+export function debug(log: string) {
+  console.log(log)
+}
+
+export const analyzeCssStep = (step: string) => {
+  let hasReplace = step.includes('##')
+  let replaceRegex = ''
+  let replaceTargetStr = ''
+  let name = ''
+
+  if (hasReplace) {
+    const replaceInfo = step.split('##')
+    replaceRegex = replaceInfo[1]
+    replaceTargetStr = replaceInfo[2] || ''
+    name = replaceInfo[0]
+  } else {
+    name = step
+  }
+
+  return {
+    name,
+    replaceRegex,
+    replaceTargetStr,
+  }
+}
+
 export const analyzeDomStep = (step: string) => {
   let reverse = false
   let excludeIndex: number[] = []
@@ -63,8 +89,9 @@ export const analyzeDomStep = (step: string) => {
 
   let [type, name, posistion] = tokens
   console.log(tokens)
-  
-  if (!type && !posistion) { // index mode
+
+  if (!type && !posistion) {
+    // index mode
     type = 'children'
     posistion = name
     name = ''
@@ -109,6 +136,7 @@ export const analyzeDomStep = (step: string) => {
     reverse,
     type,
     name,
+    isExclude,
     isRange,
     rangeStart,
     rangeEnd,
@@ -129,8 +157,16 @@ export function makeIndexesNonNegative(size: number, indexArray: number[]) {
   return indexArray.map((i) => (i < 0 ? (size + i > 0 ? size + i : 0) : i >= size ? size - 1 : i))
 }
 
-export function makeIndexesFromRange(size: number, rangeStart: number, rangeEnd: number, rangeStep: number) {
-  const indexes = []
+function generateFullIndexes(size: number, reverse: boolean) {
+  const ans = []
+  for (let i = 0; i < size; i++) {
+    ans.push(i)
+  }
+  return reverse ? ans.reverse() : ans
+}
+
+export function makeIndexesFromRange(size: number, rangeStart: number, rangeEnd: number, rangeStep: number, isExclude: boolean) {
+  let indexes: number[] = []
   let [pRangeStart, pRangeEnd] = makeIndexesNonNegative(size, [rangeStart, rangeEnd])
   const step = Math.abs(rangeStep)
 
@@ -142,6 +178,11 @@ export function makeIndexesFromRange(size: number, rangeStart: number, rangeEnd:
     for (let i = pRangeStart; i <= pRangeEnd; i += step) {
       indexes.push(i)
     }
+  }
+
+  if (isExclude) {
+    const fullIndexes = generateFullIndexes(size, pRangeStart > pRangeEnd)
+    indexes = fullIndexes.filter((i) => !indexes.includes(i))
   }
 
   return indexes

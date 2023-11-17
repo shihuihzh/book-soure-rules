@@ -11,6 +11,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/jsdom": "^21.1.5",
+    "@types/jsonpath": "^0.2.3",
     "typescript": "^5.2.2"
   },
   "dependencies": {
