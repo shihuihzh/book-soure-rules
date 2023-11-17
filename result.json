@@ -1,0 +1,13 @@
+{
+  reverse: false,
+  type: 'class',
+  name: 'novelslist2',
+  isRange: false,
+  rangeStart: 0,
+  rangeEnd: 0,
+  rangeStep: 0,
+  includeIndex: [],
+  excludeIndex: [],
+  replaceRegex: '',
+  replaceTargetStr: ''
+}
