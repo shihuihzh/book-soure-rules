@@ -2,35 +2,32 @@ import fs from 'fs/promises'
 import biquSource from './biqu'
 import { BookSource, SearchResult } from './types'
 import { extractDataByCSSRule, extractDataByDomRule, extractDataByJSONRule, extractDataByXPath } from './rules'
-import { analyzeCssStep } from './utils'
 
 class Source {
   constructor(public bookSource: BookSource) {}
-  
+
   extractDataByRule(text: string, rule?: string): Array<string | string[]> {
     if (!rule || !text) {
       return []
     }
 
-    if(rule.startsWith('@css:')) {
+    if (rule.startsWith('@css:')) {
       return extractDataByCSSRule(text, rule)
-
-    } else if(rule.startsWith('@json:') || rule.startsWith('$.')) {
+    } else if (rule.startsWith('@json:') || rule.startsWith('$.')) {
       return extractDataByJSONRule(text, rule)
-    } else if(rule.startsWith('@XPath') || rule.startsWith('//')) {
+    } else if (rule.startsWith('@XPath') || rule.startsWith('//')) {
       return extractDataByXPath(text, rule)
     } else {
       return extractDataByDomRule(text, rule)
     }
-    
   }
 
-   async test(html: string, rule: string) {
+  async test(html: string, rule: string) {
     const text = this.extractDataByRule(html, rule)
     console.log(text)
   }
 
-  async search(key: string): Promise<Partial<SearchResult>[]> {
+  async search(key: string, page: number): Promise<Partial<SearchResult>[]> {
     const url = this.bookSource.bookSourceUrl + this.bookSource.searchUrl.replace('{{key}}', key)
     const result = await request(url)
     const searchResults: Partial<SearchResult>[] = []
@@ -78,7 +75,7 @@ async function main() {
   //   console.log(analyzeDomStep(e))
   // })
   //
-  // source.test(await fs.readFile('./test/search.html', 'utf-8'), 'class.s2@tag.a[10:0:-2]@text')
+  source.test(await fs.readFile('./test/search.html', 'utf-8'), '.s2 a[10:0:-2]@text')
   //
   //
   // '[property=og:novel:author]@content'.split('@').forEach((e) => {
@@ -93,7 +90,7 @@ async function main() {
   //   { name: "Rome",   "population": 2870528 }
   // ];
   // source.test(JSON.stringify(cities), '$..population')
-  source.test(await fs.readFile('./test/search.html', 'utf-8'), '//*[@id="main"]/div[1]/ul/li[3]/span')
+  // source.test(await fs.readFile('./test/search.html', 'utf-8'), '//*[@id="main"]/div[1]/ul/li[2]/span[2]/a/@href')
 }
 
 main()

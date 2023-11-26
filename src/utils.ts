@@ -24,7 +24,42 @@ export const analyzeCssStep = (step: string) => {
   }
 }
 
-export const analyzeDomStep = (step: string) => {
+function makeDomStepReguarly(step: string): string {
+  if (
+    step.startsWith('class') ||
+    step.startsWith('id') ||
+    step.startsWith('tag') ||
+    step.startsWith('-class') ||
+    step.startsWith('-id') ||
+    step.startsWith('-tag')
+  ) {
+    return step
+  }
+
+  const isReverse = step.startsWith('-')
+  const s = step.split('.')
+  const lastToken = s[s.length - 1]
+  let selectorEndStep = step.length
+  let hasIndex = false
+  let hasRange = false
+  if (!isNaN(parseInt(lastToken))) {
+    // has index
+    selectorEndStep = step.lastIndexOf('.')
+    hasIndex = true
+  }
+
+  if (step.includes('[')) {
+    // has range
+    selectorEndStep = step.lastIndexOf('[')
+    hasRange = true
+  }
+
+  return `${isReverse ? '-' : ''}css{${step.substring(isReverse ? 1 : 0, selectorEndStep)}}${hasIndex ? step.substring(selectorEndStep - 1) : ''}${
+    hasRange ? step.substring(selectorEndStep) : ''
+  }`
+}
+
+export const analyzeDomStep = (step: string, isEnd: boolean = false) => {
   let reverse = false
   let excludeIndex: number[] = []
   let includeIndex: number[] = []
@@ -34,10 +69,13 @@ export const analyzeDomStep = (step: string) => {
   let isExclude = false
   let isRange = false
   let hasReplace = false
+  let isCssRange = false
   let replaceRegex = ''
   let replaceTargetStr = ''
 
-  let charArr = Array.from(step)
+  const regularStep = isEnd ? step : makeDomStepReguarly(step)
+  debug(`DEBUG: after regularStep: ${regularStep}`)
+  let charArr = Array.from(regularStep)
   let cursor = 0
   let candiate: string = ''
   let tokens = []
@@ -59,6 +97,22 @@ export const analyzeDomStep = (step: string) => {
       case '#':
       case '[':
       case ']':
+      case '{':
+      case '}':
+        if (c === '}') {
+          isCssRange = false
+          break
+        }
+
+        if (isCssRange) {
+          candiate += c // eating css selector, continue
+          break
+        }
+
+        if (c === '{') {
+          isCssRange = true
+        }
+
         if (c === '!') {
           isExclude = true
           if (candiate.startsWith('[')) {
@@ -87,14 +141,14 @@ export const analyzeDomStep = (step: string) => {
     tokens.push(candiate)
   }
 
-  let [type, name, posistion] = tokens
-  console.log(tokens)
+  let [type, selector, posistion] = tokens
+  debug(`tokens: ${tokens}`)
 
   if (!type && !posistion) {
     // index mode
     type = 'children'
-    posistion = name
-    name = ''
+    posistion = selector
+    selector = ''
   }
 
   if (posistion) {
@@ -135,7 +189,7 @@ export const analyzeDomStep = (step: string) => {
   return {
     reverse,
     type,
-    name,
+    selector,
     isExclude,
     isRange,
     rangeStart,

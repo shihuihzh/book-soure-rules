@@ -88,31 +88,33 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
 
   const steps = rule.split('@')
   const emptyTextNode = doc.createTextNode('')
-  debug(`all DOM rule steps: ${steps}`)
+  debug(`all DOM rule steps: ${steps.join(', ')}`)
   let targetElements: Array<Node> | Array<Node[]> = [doc]
 
   let lastReplaceRegex,
     lastReplaceTargetStr: string = ''
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]
-    const { type, name, includeIndex, excludeIndex, reverse, replaceRegex, replaceTargetStr, isExclude, isRange, rangeStart, rangeEnd, rangeStep } =
-      analyzeDomStep(step)
+    const stepAfterAnalyze = analyzeDomStep(step, i === steps.length - 1)
+    const { type, selector, includeIndex, excludeIndex, reverse, replaceRegex, replaceTargetStr, isExclude, isRange, rangeStart, rangeEnd, rangeStep } = stepAfterAnalyze
+      
     lastReplaceRegex = replaceRegex
     lastReplaceTargetStr = replaceTargetStr
 
     debug(
-      `run DOM rule step:{${step}} type:${type}, selector: ${name}, reveres: ${reverse} includeIndex: [${includeIndex}] excludeIndex: [${excludeIndex}]`
+      `run DOM rule step: ${JSON.stringify(stepAfterAnalyze, null, 2)}`
     )
 
     switch (type.toLowerCase()) {
       case 'class':
-        targetElements = queryBySelector(targetElements as Array<Node>, `.${name}`, reverse)
+        targetElements = queryBySelector(targetElements as Array<Node>, `.${selector}`, reverse)
         break
       case 'id':
-        targetElements = queryBySelector(targetElements as Array<Node>, `#${name}`, reverse)
+        targetElements = queryBySelector(targetElements as Array<Node>, `#${selector}`, reverse)
         break
+      case 'css':
       case 'tag':
-        targetElements = queryBySelector(targetElements as Array<Node>, name, reverse)
+        targetElements = queryBySelector(targetElements as Array<Node>, selector, reverse)
         break
       case 'children':
         targetElements = allChildren(targetElements as Array<Node>, reverse)

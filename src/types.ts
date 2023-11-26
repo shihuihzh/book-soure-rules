@@ -23,6 +23,8 @@ export type RuleSearch = RuleExplore & {}
 export type RuleContent = {
   content: string
   nextContentUrl: string
+  webJs: string
+  sourceRegex: string
 }
 
 export type RuleToc = {
@@ -53,6 +55,18 @@ export type BookSource = {
   ruleToc: Partial<RuleToc>
   searchUrl: string
   weight: number
+  header?: Record<string, string>
+}
+
+export type UrlOption = {
+  method: string
+  charset: string
+  webView: boolean
+  headers: Record<string, string>
+  body: string
+  type: string
+  js: string
+  retry: number
 }
 
 // #####
