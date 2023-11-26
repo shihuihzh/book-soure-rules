@@ -4,14 +4,14 @@ import jp from 'jsonpath'
 import { debug, analyzeDomStep, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep } from './utils'
 
 // dom
-const queryBySelector = (targetElements: Array<Node>, selector: string, reverse: boolean) => {
-  const es = targetElements.flatMap((e) => Array.from((e as Element).querySelectorAll(selector)))
+const queryBySelector = (targetElements: Array<Node>, selector: string, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
+  const es = targetElements.flatMap((e) => filter(Array.from((e as Element).querySelectorAll(selector))))
 
   return reverse ? es.reverse() : es
 }
 
-const allChildren = (targetElements: Array<Node>, reverse: boolean) => {
-  const es = targetElements.flatMap((e) => Array.from(e.childNodes)) as Element[]
+const allChildren = (targetElements: Array<Node>, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
+  const es = targetElements.flatMap((e) => filter(Array.from(e.childNodes))) as Node[]
 
   return reverse ? es.reverse() : es
 }
@@ -74,7 +74,7 @@ export function extractDataByCSSRule(html: string, rule: string): Array<string |
         break
       default:
         // run selector
-        targetElements = queryBySelector(targetElements as Node[], name, false)
+        targetElements = queryBySelector(targetElements as Node[], name, false, (e) => e)
         break
     }
   }
@@ -100,6 +100,34 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       
     lastReplaceRegex = replaceRegex
     lastReplaceTargetStr = replaceTargetStr
+    
+    const filterElements = (ie: Array<Node>) => {
+      // include or exclude elements
+      if (includeIndex.length > 0 || excludeIndex.length > 0 || isRange) {
+        const size = ie.length
+
+        if (isRange) {
+          let rangeIncludeIndex = makeIndexesFromRange(size, rangeStart, rangeEnd, rangeStep, isExclude)
+          ie = rangeIncludeIndex.map((i) => (ie as Node[])[i])
+        } else {
+          const nonNegativeIncludeIndex = makeIndexesNonNegative(size, includeIndex)
+          const nonNegativeExcludeIndex = makeIndexesNonNegative(size, excludeIndex)
+          ie = (ie as Node[]).filter((_, i) => {
+            if (nonNegativeIncludeIndex.length > 0) {
+              return nonNegativeIncludeIndex.includes(i)
+            }
+
+            if (nonNegativeExcludeIndex.includes(i)) {
+              return false
+            }
+
+            return true
+          })
+        }
+      }
+      
+      return ie
+    }
 
     debug(
       `run DOM rule step: ${JSON.stringify(stepAfterAnalyze, null, 2)}`
@@ -107,17 +135,17 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
 
     switch (type.toLowerCase()) {
       case 'class':
-        targetElements = queryBySelector(targetElements as Array<Node>, `.${selector}`, reverse)
+        targetElements = queryBySelector(targetElements as Array<Node>, `.${selector}`, reverse, filterElements)
         break
       case 'id':
-        targetElements = queryBySelector(targetElements as Array<Node>, `#${selector}`, reverse)
+        targetElements = queryBySelector(targetElements as Array<Node>, `#${selector}`, reverse, filterElements)
         break
       case 'css':
       case 'tag':
-        targetElements = queryBySelector(targetElements as Array<Node>, selector, reverse)
+        targetElements = queryBySelector(targetElements as Array<Node>, selector, reverse, filterElements)
         break
       case 'children':
-        targetElements = allChildren(targetElements as Array<Node>, reverse)
+        targetElements = allChildren(targetElements as Array<Node>, reverse, filterElements)
         break
 
       // below are result case
@@ -130,6 +158,7 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
 
       case 'href':
       case 'src':
+      case 'data-src':
         targetElements = (targetElements as Node[]).map((e) => (e as Element).attributes.getNamedItem(type) || emptyTextNode)
         break
       case 'html':
@@ -145,29 +174,6 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       break
     }
 
-    // include or exclude elements
-    if (includeIndex.length > 0 || excludeIndex.length > 0 || isRange) {
-      const size = targetElements.length
-
-      if (isRange) {
-        let rangeIncludeIndex = makeIndexesFromRange(size, rangeStart, rangeEnd, rangeStep, isExclude)
-        targetElements = rangeIncludeIndex.map((i) => (targetElements as Node[])[i])
-      } else {
-        const nonNegativeIncludeIndex = makeIndexesNonNegative(size, includeIndex)
-        const nonNegativeExcludeIndex = makeIndexesNonNegative(size, excludeIndex)
-        targetElements = (targetElements as Node[]).filter((_, i) => {
-          if (nonNegativeIncludeIndex.length > 0) {
-            return nonNegativeIncludeIndex.includes(i)
-          }
-
-          if (nonNegativeExcludeIndex.includes(i)) {
-            return false
-          }
-
-          return true
-        })
-      }
-    }
   }
 
   return makeResult(targetElements, lastReplaceRegex, lastReplaceTargetStr)

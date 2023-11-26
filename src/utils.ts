@@ -1,3 +1,6 @@
+import { UrlOption } from "./types"
+import simpleEval from 'simple-eval';
+
 export function debug(log: string) {
   console.log(log)
 }
@@ -54,7 +57,7 @@ function makeDomStepReguarly(step: string): string {
     hasRange = true
   }
 
-  return `${isReverse ? '-' : ''}css{${step.substring(isReverse ? 1 : 0, selectorEndStep)}}${hasIndex ? step.substring(selectorEndStep - 1) : ''}${
+  return `${isReverse ? '-' : ''}css{${step.substring(isReverse ? 1 : 0, selectorEndStep)}}${hasIndex ? step.substring(selectorEndStep) : ''}${
     hasRange ? step.substring(selectorEndStep) : ''
   }`
 }
@@ -92,25 +95,20 @@ export const analyzeDomStep = (step: string, isEnd: boolean = false) => {
           candiate += c
         }
         break
+
+      case '}':
+        // css end
+        isCssRange = false
+        break
       case '.':
       case '!':
       case '#':
       case '[':
       case ']':
       case '{':
-      case '}':
-        if (c === '}') {
-          isCssRange = false
-          break
-        }
-
         if (isCssRange) {
           candiate += c // eating css selector, continue
           break
-        }
-
-        if (c === '{') {
-          isCssRange = true
         }
 
         if (c === '!') {
@@ -122,6 +120,8 @@ export const analyzeDomStep = (step: string, isEnd: boolean = false) => {
         } else if (c === '#') {
           hasReplace = true
           endLoop = true
+        } else if (c === '{') {
+          isCssRange = true
         }
 
         tokens.push(candiate)
@@ -240,4 +240,30 @@ export function makeIndexesFromRange(size: number, rangeStart: number, rangeEnd:
   }
 
   return indexes
+}
+
+const evalCurryBraceExp = (code: string, context: Record<string, unknown>) => {
+  // use regex extract data in `u` which warp with '{{}}'
+  const match = code.match(/{{(.*?)}}/g)
+  const target = match?.reduce((acc, cur) => {
+    const evalResult = simpleEval(cur.slice(2, -2), context)
+    return acc.replaceAll(cur, evalResult as string)
+  }, code) || code
+  
+
+  return target
+}
+
+export const analyzeUrl = (url: string, context: Record<string, unknown>): [string, UrlOption] => {
+  const commaIndex = url.indexOf(',')
+  const originUrl = commaIndex !== -1 ? url.slice(0, commaIndex) : url
+  const originOptions = commaIndex !== -1 ? url.slice(commaIndex + 1) : '{}'
+  
+  
+  return [evalCurryBraceExp(originUrl, context), JSON.parse(evalCurryBraceExp(originOptions, context))]
+}
+
+export function arrayBufferToString(buffer: ArrayBuffer, encoding = 'utf-8') {
+  const decoder = new TextDecoder(encoding);
+  return decoder.decode(buffer);
 }

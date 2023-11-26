@@ -1,3 +1,4 @@
+// rules
 type RuleBookBase = Record<string, string> & {
   author: string
   coverUrl: string
@@ -18,7 +19,9 @@ export type RuleExplore = RuleBookBase & {
   bookUrl: string
 }
 
-export type RuleSearch = RuleExplore & {}
+export type RuleSearch = RuleExplore & {
+  checkKeyWord: string
+}
 
 export type RuleContent = {
   content: string
@@ -58,16 +61,17 @@ export type BookSource = {
   header?: Record<string, string>
 }
 
+// #####
+export type SearchResult = RuleSearch & {}
+
 export type UrlOption = {
   method: string
-  charset: string
-  webView: boolean
   headers: Record<string, string>
   body: string
+  charset: string
+  webView: boolean
   type: string
   js: string
   retry: number
 }
 
-// #####
-export type SearchResult = RuleSearch & {}
