@@ -1,17 +1,28 @@
 import { JSDOM } from 'jsdom'
 import xpath from 'xpath'
 import jp from 'jsonpath'
+import simpleEval from 'simple-eval'
 import { debug, analyzeDomStep, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep, analyzeDomStepV2 } from './utils'
 
 // dom
 const queryBySelector = (targetElements: Array<Node>, selector: string, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
-  const es = targetElements.flatMap((e) => filter(Array.from((e as Element).querySelectorAll(selector))))
+  let es: Node[] = []
+  try {
+    es = targetElements.flatMap((e) => filter(Array.from((e as Element).querySelectorAll(selector))))
+  } catch (e: any) {
+    debug(e.message)
+  }
 
   return reverse ? es.reverse() : es
 }
 
 const allChildren = (targetElements: Array<Node>, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
-  const es = targetElements.flatMap((e) => filter(Array.from(e.childNodes))) as Node[]
+  let es: Node[] = []
+  try {
+    es = targetElements.flatMap((e) => filter(Array.from(e.childNodes))) as Node[]
+  } catch (e: any) {
+    debug(e.message)
+  }
 
   return reverse ? es.reverse() : es
 }
@@ -58,7 +69,7 @@ export function extractDataByCSSRule(html: string, rule: string): Array<string |
         break
 
       case 'owntext':
-        targetElements = (targetElements as Node[]).flatMap((e) => Array.from((e as HTMLElement).childNodes).filter((c) => c.nodeType === 3))
+        targetElements = (targetElements as Node[]).map((e) => Array.from((e as HTMLElement).childNodes).filter((c) => c.nodeType === 3))
 
       case 'href':
       case 'src':
@@ -96,11 +107,24 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]
     const stepAfterAnalyze = analyzeDomStepV2(step)
-    const { type, selector, includeIndex, excludeIndex, reverse, replaceRegex, replaceTargetStr, isExclude, isRange, rangeStart, rangeEnd, rangeStep } = stepAfterAnalyze
-      
+    const {
+      type,
+      selector,
+      includeIndex,
+      excludeIndex,
+      reverse,
+      replaceRegex,
+      replaceTargetStr,
+      isExclude,
+      isRange,
+      rangeStart,
+      rangeEnd,
+      rangeStep,
+    } = stepAfterAnalyze
+
     lastReplaceRegex = replaceRegex
     lastReplaceTargetStr = replaceTargetStr
-    
+
     const filterElements = (ie: Array<Node>) => {
       // include or exclude elements
       if (includeIndex.length > 0 || excludeIndex.length > 0 || isRange) {
@@ -125,13 +149,11 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
           })
         }
       }
-      
+
       return ie
     }
 
-    debug(
-      `run DOM rule step: ${JSON.stringify(stepAfterAnalyze, null, 2)}`
-    )
+    debug(`run DOM rule step: ${JSON.stringify(stepAfterAnalyze, null, 2)}`)
 
     switch (type.toLowerCase()) {
       case 'class':
@@ -154,7 +176,8 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
         break
 
       case 'owntext':
-        targetElements = (targetElements as Node[]).flatMap((e) => Array.from((e as HTMLElement).childNodes).filter((c) => c.nodeType === 3))
+        targetElements = (targetElements as Node[]).map((e) => doc.createTextNode(Array.from((e as HTMLElement).childNodes).filter((c) => c.nodeType === 3).map(c => c.textContent).join('')))
+        break
 
       case 'href':
       case 'src':
@@ -174,7 +197,6 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       // not found, break the loop
       break
     }
-
   }
 
   return makeResult(targetElements, lastReplaceRegex, lastReplaceTargetStr)
@@ -198,4 +220,55 @@ function makeResult(targetElements: Array<Node> | Array<Node[]>, lastReplaceRege
   }
 
   return result
+}
+
+export function extractDataByRule(text: string, rule?: string): Array<string | string[]> {
+  if (!rule || !text) {
+    return []
+  }
+
+  // replace all /n or /r to empty string
+  rule = rule.replace(/(\r\n|\n|\r)/gm, '')
+
+  if (rule.startsWith('@css:')) {
+    return extractDataByCSSRule(text, rule)
+  } else if (rule.startsWith('@json:') || rule.startsWith('$.')) {
+    return extractDataByJSONRule(text, rule)
+  } else if (rule.startsWith('@XPath') || rule.startsWith('//')) {
+    return extractDataByXPath(text, rule)
+  } else {
+    return extractDataByDomRule(text, rule)
+  }
+}
+
+export function extractDataByAllInOneRule(text: string, rule: string): Record<string, string> {
+  return {}
+}
+
+export function extractDataByPutRule(text: string, rule: string): Record<string, Array<string | string[]>> {
+  const ruleObj: any = eval(`var obj=${rule.slice(5)};obj`)
+  const keys = Object.keys(ruleObj)
+
+  return keys.reduce((result, key) => {
+    const rule = ruleObj[key]
+    result[key] = extractDataByRule(text, rule)
+    return result
+  }, {} as Record<string, Array<string | string[]>>)
+}
+
+export function extractDataByGetRule(obj: Record<string, Array<string | string[]>>, rule: string): Array<string | string[]> {
+  const getRuleRegex = /^@get:\{([^\}]+)\}(##.*)?$/
+  const m = rule.match(getRuleRegex)
+  if (m) {
+    let result = obj[m[1].trim()] || []
+    if (m[2]) { // regex replace
+      const patten = rule.split('##')
+      const rr = new RegExp(patten[1], 'g') // regex
+      const tt = patten[2] || '' //  replace text
+      result = result.map(e => e instanceof Array ? e.map(ee => ee.replace(rr, tt) )  : e.replace(rr, tt) )
+    }
+    return  result
+  } else {
+    return []
+  }
 }

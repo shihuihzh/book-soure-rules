@@ -10,8 +10,10 @@ type RuleBookBase = Record<string, string> & {
 }
 
 export type RuleBookInfo = RuleBookBase & {
+  init: string
   tocUrl: string
   canReName: string
+  downloadUrls: string
 }
 
 export type RuleExplore = RuleBookBase & {
@@ -74,4 +76,3 @@ export type UrlOption = {
   js: string
   retry: number
 }
-

@@ -23,7 +23,7 @@
     "lastChapter": "@get:{l}",
     "name": "@get:{n}",
     "tocUrl": "@get:{t}",
-    "wordCount": "@get:{w}##\\s.*"
+    "wordCount": "@get:{w}##^\\s+|\\s+$"
   },
   "ruleContent": {
     "content": "@js:\nvar path=\".chapter_ct&&.read-rss\",\np=java.getElements(path);\np.select(\"span.hide\").remove();\np.html();",

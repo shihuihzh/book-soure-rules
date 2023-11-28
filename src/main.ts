@@ -1,31 +1,13 @@
 import { BookSource, SearchResult, UrlOption } from './types'
-import { extractDataByCSSRule, extractDataByDomRule, extractDataByJSONRule, extractDataByXPath } from './rules'
+import { extractDataByAllInOneRule, extractDataByCSSRule, extractDataByDomRule, extractDataByGetRule, extractDataByJSONRule, extractDataByPutRule, extractDataByRule, extractDataByXPath } from './rules'
 import { analyzeUrl, arrayBufferToString, debug } from './utils'
 
 export class Source {
   constructor(public bookSource: BookSource) {}
 
-  extractDataByRule(text: string, rule?: string): Array<string | string[]> {
-    if (!rule || !text) {
-      return []
-    }
-
-    // replace all /n or /r to empty string
-    rule = rule.replace(/(\r\n|\n|\r)/gm, '')
-
-    if (rule.startsWith('@css:')) {
-      return extractDataByCSSRule(text, rule)
-    } else if (rule.startsWith('@json:') || rule.startsWith('$.')) {
-      return extractDataByJSONRule(text, rule)
-    } else if (rule.startsWith('@XPath') || rule.startsWith('//')) {
-      return extractDataByXPath(text, rule)
-    } else {
-      return extractDataByDomRule(text, rule)
-    }
-  }
 
   async test(html: string, rule: string) {
-    const text = this.extractDataByRule(html, rule)
+    const text = extractDataByRule(html, rule)
     console.log(text)
   }
 
@@ -38,7 +20,7 @@ export class Source {
       }
     )
     const result = await request(url, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
-    debug('search result test:' + result)
+    // debug('search result test:' + result)
 
     const searchResults: Partial<SearchResult>[] = []
     const rawResults: Record<string, (string | string[])[]> = {}
@@ -48,7 +30,7 @@ export class Source {
     Object.keys(this.bookSource.ruleSearch)
       .filter((e) => !ignoreRules.includes(e)) // no need
       .forEach((ruleName: string) => {
-        rawResults[ruleName] = this.extractDataByRule(result, `${ruleOfBookList ? ruleOfBookList + '@' : ''}${this.bookSource.ruleSearch[ruleName]}`)
+        rawResults[ruleName] = extractDataByRule(result, `${ruleOfBookList ? ruleOfBookList + '@' : ''}${this.bookSource.ruleSearch[ruleName]}`)
       })
 
     const size = rawResults['name'].length
@@ -63,6 +45,58 @@ export class Source {
     }
 
     return searchResults
+  }
+  
+  makeResultDynamic(rules: any, prefixRule: string, ignoreRules: string[], extractDataFunction: (rule: string) => any[]){
+    const r: any[] = []
+    const rawResults: Record<string, (string | string[])[]> = {}
+
+    Object.keys(rules)
+      .filter((e) => !ignoreRules.includes(e)) // no need
+      .forEach((ruleName: string) => {
+        rawResults[ruleName] = extractDataFunction(`${prefixRule ? prefixRule + '@' : ''}${rules[ruleName]}`)
+      })
+
+    const size = rawResults['name'].length
+    const keys = Object.keys(rawResults)
+    for (let i = 0; i < size; i++) {
+      const result: any = {}
+      for (let j = 0; j < keys.length; j++) {
+        result[keys[j]] = ((rawResults[keys[j]]?.[i] as string) || '').trim()
+      }
+
+      r.push(result)
+    }
+
+    return r
+    
+  }
+  
+  async bookInfo(infoUrl: string) {
+    let bookInfo: any[] = []
+
+    const [url, options] = analyzeUrl(
+      (!infoUrl.toLowerCase().startsWith('http') ? this.bookSource.bookSourceUrl : '') + infoUrl, {}
+    )
+    const result = await request(url, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
+    debug('book info test:' + result)
+    
+    const initRule = this.bookSource.ruleBookInfo.init?.trim()
+    if(initRule) { // has init
+      let data: unknown = {}
+      if (initRule.startsWith(':')) { // allInOneRegex
+        data = extractDataByAllInOneRule(result, initRule)
+      } else  if (initRule.startsWith('@put')) { // put
+        const data = extractDataByPutRule(result, initRule)
+        bookInfo = this.makeResultDynamic(this.bookSource.ruleBookInfo, '', ['init'], (rule: string) => extractDataByGetRule(data, rule))
+      }
+
+    } else { // no init extract one by one
+      
+    }
+    
+    return bookInfo
+    
   }
 }
 
