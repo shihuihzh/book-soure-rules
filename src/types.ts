@@ -58,7 +58,7 @@ export type BookSource = {
   ruleToc: Partial<RuleToc>
   searchUrl: string
   weight: number
-  header?: Record<string, string>
+  header?: string
 }
 
 // #####

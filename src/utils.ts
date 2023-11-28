@@ -1,5 +1,5 @@
-import { UrlOption } from "./types"
-import simpleEval from 'simple-eval';
+import { UrlOption } from './types'
+import simpleEval from 'simple-eval'
 
 export function debug(log: string) {
   console.log(log)
@@ -39,26 +39,35 @@ function makeDomStepReguarly(step: string): string {
     return step
   }
 
+  ;/.+[\.\[].+]+$/
   const isReverse = step.startsWith('-')
   const s = step.split('.')
   const lastToken = s[s.length - 1]
   let selectorEndStep = step.length
   let hasIndex = false
   let hasRange = false
-  if (!isNaN(parseInt(lastToken))) {
+  let hasRageNoBrace = false
+  if (!/\d+/.test(lastToken)) {
     // has index
     selectorEndStep = step.lastIndexOf('.')
     hasIndex = true
   }
 
-  if (step.includes('[')) {
+  if (s.length > 1 && lastToken.includes(':')) {
+    // has range
+    selectorEndStep = step.lastIndexOf('.')
+    hasRange = true
+    hasRageNoBrace = true
+  }
+
+  if (step.lastIndexOf('[') !== -1 && step.lastIndexOf('[') !== 0) {
     // has range
     selectorEndStep = step.lastIndexOf('[')
     hasRange = true
   }
 
   return `${isReverse ? '-' : ''}css{${step.substring(isReverse ? 1 : 0, selectorEndStep)}}${hasIndex ? step.substring(selectorEndStep) : ''}${
-    hasRange ? step.substring(selectorEndStep) : ''
+    hasRange ? (hasRageNoBrace ? `[${step.substring(selectorEndStep + 1)}]` : step.substring(selectorEndStep)) : ''
   }`
 }
 
@@ -202,6 +211,105 @@ export const analyzeDomStep = (step: string, isEnd: boolean = false) => {
   }
 }
 
+export const analyzeDomStepV2 = (step: string) => {
+  const ruleRegex = /^-?(tag|class|id)\.(([^.\[]+)\.?($|[!\[\]\-\d,:]+$))/
+  const valueRegex = /^(text|textNodes|ownText|href|src|data-src|html|all|content)(##.*)?$/
+  const extractIndexRegex = /(?=([.\[][!\[\]\-\d,:]+)$)/
+
+  let tokens: string[] = []
+  if (!valueRegex.test(step)) {
+    const match = step.match(ruleRegex)
+    if (match) {
+      // full rule
+      tokens = [match[1], match[3], match[4]]
+    } else {
+      // simple rule or just index for children
+      const indexMatch = step.match(extractIndexRegex)
+      if (indexMatch) {
+        if (indexMatch.index === 0) {
+          // children
+          tokens = ['children', '', indexMatch[1]]
+        } else {
+          // css
+          tokens = [step.startsWith('children') ? 'children' : 'css', step.substring(0, indexMatch.index), indexMatch[1]]
+        }
+      } else {
+        tokens = [step.startsWith('children') ? 'children' : 'css', step]
+      }
+    }
+  } else {
+    // get value
+    const replaceInfo = step.split('##')
+    tokens = [replaceInfo[0]]
+  }
+
+  let [type, selector, posistion] = tokens
+  let reverse = step.startsWith('-')
+  let excludeIndex: number[] = []
+  let includeIndex: number[] = []
+  let rangeStart: number = 0
+  let rangeEnd: number = 0
+  let rangeStep: number = 1
+  let isExclude = false
+  let isRange = false
+  let replaceRegex = ''
+  let replaceTargetStr = ''
+
+  debug(`tokens: ${tokens}`)
+
+  if (posistion) {
+    isExclude = posistion.includes('!')
+    const posistionOrArray = posistion.replace(/[\.!\[\]]/g, '') // clean it
+    if (!!~posistion.search(/(?:\[|:|,)/)) {
+      // is range
+      if (posistionOrArray.includes(':')) {
+        // range
+        isRange = true
+        const [start, end, step] = posistionOrArray.split(':')
+        rangeStart = parseInt(start || '0')
+        rangeEnd = parseInt(end || '-1')
+        rangeStep = parseInt(step || '1')
+      } else {
+        // indexes
+        const indexes = posistionOrArray.split(',')
+        indexes.forEach((index) => {
+          if (isExclude) {
+            excludeIndex.push(parseInt(index))
+          } else {
+            includeIndex.push(parseInt(index))
+          }
+        })
+      }
+    } else {
+      if (isExclude) {
+        excludeIndex.push(parseInt(posistionOrArray))
+      } else {
+        includeIndex.push(parseInt(posistionOrArray))
+      }
+    }
+  }
+
+  if (step.includes('##')) {
+    const replaceInfo = step.split('##')
+    replaceRegex = replaceInfo[1]
+    replaceTargetStr = replaceInfo[2] || ''
+  }
+
+  return {
+    reverse,
+    type,
+    selector,
+    isExclude,
+    isRange,
+    rangeStart,
+    rangeEnd,
+    rangeStep,
+    includeIndex,
+    excludeIndex,
+    replaceRegex,
+    replaceTargetStr,
+  }
+}
 export function makeIndexesNonNegative(size: number, indexArray: number[]) {
   // size 10
   // -1 => 9
@@ -245,11 +353,11 @@ export function makeIndexesFromRange(size: number, rangeStart: number, rangeEnd:
 const evalCurryBraceExp = (code: string, context: Record<string, unknown>) => {
   // use regex extract data in `u` which warp with '{{}}'
   const match = code.match(/{{(.*?)}}/g)
-  const target = match?.reduce((acc, cur) => {
-    const evalResult = simpleEval(cur.slice(2, -2), context)
-    return acc.replaceAll(cur, evalResult as string)
-  }, code) || code
-  
+  const target =
+    match?.reduce((acc, cur) => {
+      const evalResult = simpleEval(cur.slice(2, -2), context)
+      return acc.replaceAll(cur, evalResult as string)
+    }, code) || code
 
   return target
 }
@@ -258,12 +366,11 @@ export const analyzeUrl = (url: string, context: Record<string, unknown>): [stri
   const commaIndex = url.indexOf(',')
   const originUrl = commaIndex !== -1 ? url.slice(0, commaIndex) : url
   const originOptions = commaIndex !== -1 ? url.slice(commaIndex + 1) : '{}'
-  
-  
+
   return [evalCurryBraceExp(originUrl, context), JSON.parse(evalCurryBraceExp(originOptions, context))]
 }
 
 export function arrayBufferToString(buffer: ArrayBuffer, encoding = 'utf-8') {
-  const decoder = new TextDecoder(encoding);
-  return decoder.decode(buffer);
+  const decoder = new TextDecoder(encoding)
+  return decoder.decode(buffer)
 }

@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom'
 import xpath from 'xpath'
 import jp from 'jsonpath'
-import { debug, analyzeDomStep, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep } from './utils'
+import { debug, analyzeDomStep, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep, analyzeDomStepV2 } from './utils'
 
 // dom
 const queryBySelector = (targetElements: Array<Node>, selector: string, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
@@ -95,7 +95,7 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
     lastReplaceTargetStr: string = ''
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i]
-    const stepAfterAnalyze = analyzeDomStep(step, i === steps.length - 1)
+    const stepAfterAnalyze = analyzeDomStepV2(step)
     const { type, selector, includeIndex, excludeIndex, reverse, replaceRegex, replaceTargetStr, isExclude, isRange, rangeStart, rangeEnd, rangeStep } = stepAfterAnalyze
       
     lastReplaceRegex = replaceRegex
@@ -159,6 +159,7 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       case 'href':
       case 'src':
       case 'data-src':
+      case 'content':
         targetElements = (targetElements as Node[]).map((e) => (e as Element).attributes.getNamedItem(type) || emptyTextNode)
         break
       case 'html':

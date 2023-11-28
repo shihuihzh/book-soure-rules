@@ -37,7 +37,7 @@ export class Source {
         page,
       }
     )
-    const result = await request(url, options)
+    const result = await request(url, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
     debug('search result test:' + result)
 
     const searchResults: Partial<SearchResult>[] = []
@@ -66,7 +66,7 @@ export class Source {
   }
 }
 
-async function request(url: string, options?: UrlOption) {
+async function request(url: string, headers?: Record<string, string>, options?: UrlOption) {
   const defaultHeader = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/77.0.3865.120 Safari/537.36',
     'Accept-Language': 'zh-CN,zh;q=0.9',
@@ -74,7 +74,7 @@ async function request(url: string, options?: UrlOption) {
 
   const reqOps: any = {
     method: options?.method || 'GET',
-    headers: { ...defaultHeader, ...(options?.headers || {}) },
+    headers: { ...defaultHeader, ...headers, ...(options?.headers || {}) },
     redirect: 'follow',
   }
   
