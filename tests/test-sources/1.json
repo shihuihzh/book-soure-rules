@@ -24,7 +24,7 @@
     "wordCount": "@get:{w}"
   },
   "ruleContent": {
-    "content": ".content p!-1@html",
+    "content": ".content p[!-1,-2]@html",
     "nextContentUrl": "text.下一页@href",
     "replaceRegex": "##\\s*（本章.*）\\s*"
   },

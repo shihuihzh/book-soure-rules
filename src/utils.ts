@@ -5,6 +5,30 @@ export function debug(log: string) {
   console.log(log)
 }
 
+function getTextNodesIn(elem: Node): Node[] {
+  let textNodes: Node[] = []
+  if (elem) {
+    for (let nodes = elem.childNodes, i = nodes.length; i--; ) {
+      let node = nodes[i],
+        nodeType = node.nodeType
+      if (nodeType == 3) {
+        textNodes.push(node)
+      } else if (nodeType == 1 || nodeType == 9 || nodeType == 11) {
+        textNodes = textNodes.concat(getTextNodesIn(node))
+      }
+    }
+  }
+  return textNodes
+}
+
+export function queryTextParentElemByText(elem: Node, text: string): Node[] {
+  const textNodes = getTextNodesIn(elem)
+  return textNodes
+    .filter((t) => t.textContent === text)
+    .map((e) => e.parentElement)
+    .filter((e) => e !== null) as Node[]
+}
+
 export const analyzeCssStep = (step: string) => {
   let hasReplace = step.includes('##')
   let replaceRegex = ''
@@ -212,9 +236,9 @@ export const analyzeDomStep = (step: string, isEnd: boolean = false) => {
 }
 
 export const analyzeDomStepV2 = (step: string) => {
-  const ruleRegex = /^-?(tag|class|id)\.(([^.\[]+)\.?($|[!\[\]\-\d,:]+$))/
+  const ruleRegex = /^-?(tag|class|id|text)\.(([^.\[!]+)\.?($|[!\[\]\-\d,:]+$))/
   const valueRegex = /^(text|textNodes|ownText|href|src|data-src|html|all|content|value)(##.*)?$/
-  const extractIndexRegex = /(?=([.\[][!\[\]\-\d,:]+)$)/
+  const extractIndexRegex = /(?=([.\[!][!\[\]\-\d,:]+)$)/
 
   let tokens: string[] = []
   if (!valueRegex.test(step)) {

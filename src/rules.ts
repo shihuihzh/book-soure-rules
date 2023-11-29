@@ -2,13 +2,32 @@ import { JSDOM } from 'jsdom'
 import xpath from 'xpath'
 import jp from 'jsonpath'
 import simpleEval from 'simple-eval'
-import { debug, analyzeDomStep, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep, analyzeDomStepV2 } from './utils'
+import {
+  debug,
+  analyzeDomStep,
+  makeIndexesFromRange,
+  makeIndexesNonNegative,
+  analyzeCssStep,
+  analyzeDomStepV2,
+  queryTextParentElemByText,
+} from './utils'
 
 // dom
 const queryBySelector = (targetElements: Array<Node>, selector: string, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
   let es: Node[] = []
   try {
     es = targetElements.flatMap((e) => filter(Array.from((e as Element).querySelectorAll(selector))))
+  } catch (e: any) {
+    debug(e.message)
+  }
+
+  return reverse ? es.reverse() : es
+}
+
+const queryByText = (targetElements: Array<Node>, selector: string, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
+  let es: Node[] = []
+  try {
+    es = targetElements.flatMap((e) => filter(queryTextParentElemByText(e, selector)))
   } catch (e: any) {
     debug(e.message)
   }
@@ -169,6 +188,12 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       case 'children':
         targetElements = allChildren(targetElements as Array<Node>, reverse, filterElements)
         break
+      case 'text':
+        if (selector) {
+          // text also can be a selector
+          targetElements = queryByText(targetElements as Array<Node>, selector, reverse, filterElements)
+        }
+        break
 
       // below are result case
       case 'textnodes':
@@ -276,8 +301,9 @@ export function extractDataByRule(text: string, rule?: string): Array<string | s
       lastOper = match[1]
       lastIndex = match.index
     }
-    
-    if (group.length > 0) { // need to `flat` result 
+
+    if (group.length > 0) {
+      // need to `flat` result
       const result = []
       const groupLength = group.length
       const maxLength = Math.max(...group.map((e) => e.length))
@@ -288,13 +314,11 @@ export function extractDataByRule(text: string, rule?: string): Array<string | s
           }
         }
       }
-      
-      return result
 
+      return result
     } else {
       return tempResult // no `%%` no gruop, return tempResult
     }
-    
   } else {
     // no need split, use origin rule directly
     return runRule(rule)
@@ -323,13 +347,20 @@ export function extractDataByGetRule(obj: Record<string, Array<string | string[]
     let result = obj[m[1].trim()] || []
     if (m[2]) {
       // regex replace
-      const patten = rule.split('##')
-      const rr = new RegExp(patten[1], 'g') // regex
-      const tt = patten[2] || '' //  replace text
-      result = result.map((e) => (e instanceof Array ? e.map((ee) => ee.replace(rr, tt)) : e.replace(rr, tt)))
+      result = ruleRegexReplace(result, rule)
     }
     return result
   } else {
     return []
   }
+}
+
+export function ruleRegexReplace(data: Array<string | string[]>, rule?: string): Array<string | string[]> {
+  if (!rule) {
+    return data
+  }
+  const patten = rule.split('##')
+  const rr = new RegExp(patten[1], 'g') // regex
+  const tt = patten[2] || '' //  replace text
+  return data.map((e) => (e instanceof Array ? e.map((ee) => ee.replace(rr, tt)) : e?.replace(rr, tt) || ''))
 }

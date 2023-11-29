@@ -12,6 +12,11 @@ describe('run test', () => {
     expect(result[1].method).toBe('get')
   })
 
+  test('test analyzeDomRuleV2 2', () => {
+    const result = analyzeDomStepV2('text##aaa##bb')
+    console.log(result);
+  })
+
   test('test analyzeDomRuleV2', () => {
 
     function checkRule(result: any, expectObj: any) {

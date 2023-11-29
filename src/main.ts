@@ -1,5 +1,5 @@
 import { BookSource, SearchResult, UrlOption } from './types'
-import { extractDataByAllInOneRule, extractDataByGetRule, extractDataByPutRule, extractDataByRule } from './rules'
+import { extractDataByAllInOneRule, extractDataByGetRule, extractDataByPutRule, extractDataByRule, ruleRegexReplace } from './rules'
 import { analyzeUrl, arrayBufferToString, arrayUniqueByKey, debug } from './utils'
 
 export class Source {
@@ -98,23 +98,11 @@ export class Source {
     return (!url.toLowerCase().startsWith('http') ? this.bookSource.bookSourceUrl : '') + url
   }
 
-  async getBookToc(tocUrl: string) {
-    let tocInfo: any[] = []
-    const tocRequestMap = new Map()
-    const ignoreRules = ['nextTocUrl', 'chapterList']
+  async turnPage(u: string, pageDataFun: (url: string) => Promise<[string[], string]>) {
     const requestTasks: Record<string, Promise<[string[], string]>> = {}
-
-    const tocPageData = async (url: string): Promise<[string[], string]> => {
-      const [u, options] = analyzeUrl(this.normalizeBookUrl(url), {})
-      debug('calling TOC page url:' + u)
-      const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
-      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleToc.nextTocUrl) as string[]
-      return [tocPageUrls, text]
-    }
-
     const addTasks = (url: string) => {
       if (!Object.keys(requestTasks).includes(url)) {
-        requestTasks[url] = tocPageData(url)
+        requestTasks[url] = pageDataFun(url)
         return true
       } else {
         return false
@@ -135,11 +123,47 @@ export class Source {
       }
     }
 
-    const results = await run([tocUrl])
-    const data = results.flatMap(result => this.makeResultDynamic(this.bookSource.ruleToc, this.bookSource.ruleToc.chapterList || '', ignoreRules, (r) =>
-      extractDataByRule(result, r)
-    ))
-    console.log(arrayUniqueByKey('chapterName', data))
+    return await run([u])
+  }
+
+  async getBookToc(tocUrl: string) {
+    const ignoreRules = ['nextTocUrl', 'chapterList']
+
+    const tocPageData = async (url: string): Promise<[string[], string]> => {
+      const [u, options] = analyzeUrl(this.normalizeBookUrl(url), {})
+      debug('calling TOC page url:' + u)
+      const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
+      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleToc.nextTocUrl) as string[]
+      return [tocPageUrls, text]
+    }
+
+    const results = await this.turnPage(tocUrl, tocPageData)
+    const data = results.flatMap((result) =>
+      this.makeResultDynamic(this.bookSource.ruleToc, this.bookSource.ruleToc.chapterList || '', ignoreRules, (r) => extractDataByRule(result, r))
+    )
+    return arrayUniqueByKey('chapterName', data)
+  }
+
+  async getBookContent(contentUrl: string, title: string) {
+    const ignoreRules = ['nextContentUrl', 'replaceRegex', 'sourceRegex', 'webJs', 'imageStyle', 'payAction', 'imageDecode']
+
+    const pageDate = async (url: string): Promise<[string[], string]> => {
+      const [u, options] = analyzeUrl(this.normalizeBookUrl(url), {})
+      debug('calling content page url:' + u)
+      const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
+      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleContent.nextContentUrl) as string[]
+      return [tocPageUrls, text]
+    }
+
+    const results = await this.turnPage(contentUrl, pageDate)
+    const data = results
+        .flatMap((result) => this.makeResultDynamic(this.bookSource.ruleContent, '', ignoreRules, (r) => extractDataByRule(result, r)))
+        .map((e) => e.content)
+
+    return {
+      title: data[0]?.title || title,
+      content: ruleRegexReplace(data, this.bookSource.ruleContent.replaceRegex)
+    }
   }
 }
 

@@ -30,6 +30,11 @@ export type RuleContent = {
   nextContentUrl: string
   webJs: string
   sourceRegex: string
+  replaceRegex: string
+  title: string
+  imageStyle: string
+  payAction: string
+  imageDecode: string
 }
 
 export type RuleToc = {
