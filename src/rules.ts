@@ -176,9 +176,17 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
         break
 
       case 'owntext':
-        targetElements = (targetElements as Node[]).map((e) => doc.createTextNode(Array.from((e as HTMLElement).childNodes).filter((c) => c.nodeType === 3).map(c => c.textContent).join('')))
+        targetElements = (targetElements as Node[]).map((e) =>
+          doc.createTextNode(
+            Array.from((e as HTMLElement).childNodes)
+              .filter((c) => c.nodeType === 3)
+              .map((c) => c.textContent)
+              .join('')
+          )
+        )
         break
 
+      case 'value':
       case 'href':
       case 'src':
       case 'data-src':
@@ -227,17 +235,69 @@ export function extractDataByRule(text: string, rule?: string): Array<string | s
     return []
   }
 
+  function runRule(r: string) {
+    if (r.startsWith('@css:')) {
+      return extractDataByCSSRule(text, r)
+    } else if (r.startsWith('@json:') || r.startsWith('$.')) {
+      return extractDataByJSONRule(text, r)
+    } else if (r.startsWith('@XPath') || r.startsWith('//')) {
+      return extractDataByXPath(text, r)
+    } else {
+      return extractDataByDomRule(text, r)
+    }
+  }
+
   // replace all /n or /r to empty string
   rule = rule.replace(/(\r\n|\n|\r)/gm, '')
+  const splitRulesRegex = /(\|\||&&|%%)/g
+  let match = splitRulesRegex.exec(rule)
 
-  if (rule.startsWith('@css:')) {
-    return extractDataByCSSRule(text, rule)
-  } else if (rule.startsWith('@json:') || rule.startsWith('$.')) {
-    return extractDataByJSONRule(text, rule)
-  } else if (rule.startsWith('@XPath') || rule.startsWith('//')) {
-    return extractDataByXPath(text, rule)
+  if (match) {
+    let group = []
+    let lastOper = match[1]
+    let lastIndex = match.index
+    let tempResult = runRule(rule.substring(0, lastIndex)) || []
+    while ((match = splitRulesRegex.exec(rule))) {
+      const r = runRule(rule.substring(lastIndex + 2, match.index))
+      switch (lastOper) {
+        case '||':
+          if (tempResult.length === 0) tempResult = r
+          break
+        case '&&':
+          r.forEach((e) => tempResult.push(e))
+          break
+        case '%%':
+          // let it in group
+          group.push(r)
+          tempResult = []
+          break
+      }
+
+      lastOper = match[1]
+      lastIndex = match.index
+    }
+    
+    if (group.length > 0) { // need to `flat` result 
+      const result = []
+      const groupLength = group.length
+      const maxLength = Math.max(...group.map((e) => e.length))
+      for (let i = 0; i < maxLength; i++) {
+        for (let j = 0; j < groupLength; j++) {
+          if (group[j].length > i) {
+            result.push(group[j][i])
+          }
+        }
+      }
+      
+      return result
+
+    } else {
+      return tempResult // no `%%` no gruop, return tempResult
+    }
+    
   } else {
-    return extractDataByDomRule(text, rule)
+    // no need split, use origin rule directly
+    return runRule(rule)
   }
 }
 
@@ -261,13 +321,14 @@ export function extractDataByGetRule(obj: Record<string, Array<string | string[]
   const m = rule.match(getRuleRegex)
   if (m) {
     let result = obj[m[1].trim()] || []
-    if (m[2]) { // regex replace
+    if (m[2]) {
+      // regex replace
       const patten = rule.split('##')
       const rr = new RegExp(patten[1], 'g') // regex
       const tt = patten[2] || '' //  replace text
-      result = result.map(e => e instanceof Array ? e.map(ee => ee.replace(rr, tt) )  : e.replace(rr, tt) )
+      result = result.map((e) => (e instanceof Array ? e.map((ee) => ee.replace(rr, tt)) : e.replace(rr, tt)))
     }
-    return  result
+    return result
   } else {
     return []
   }

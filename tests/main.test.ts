@@ -11,13 +11,19 @@ describe('run test', () => {
     console.log(JSON.stringify(result, null, 2))
   }, 60_000)
 
-  test('test source book info', async () => {
-    const url = 'https://m.douhuawenxue.com/novel-275010' 
+  test.skip('test source book info', async () => {
+    const url = '/shu_102752.html'
     const source = s as unknown as BookSource
     const bookSource = new Source(source)
-    const result = await bookSource.bookInfo(url)
+    const result = await bookSource.getBookInfo(url)
     console.log(JSON.stringify(result, null, 2))
   }, 60_000)
 
-
+  test('test source book info', async () => {
+    const url = '/102752/'
+    const source = s as unknown as BookSource
+    const bookSource = new Source(source)
+    const result = await bookSource.getBookToc(url)
+    // console.log(JSON.stringify(result, null, 2))
+  }, 600_000)
 })

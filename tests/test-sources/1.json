@@ -1,52 +1,51 @@
 {
-  "bookSourceComment": "//有锁🔒为付费章节，需登录购买后才能看",
-  "bookSourceGroup": "正版,源仓库,自制,网页源,女频",
-  "bookSourceName": "豆花文学",
+  "bookSourceGroup": "源仓库,自制,网页源",
+  "bookSourceName": "书海阁",
   "bookSourceType": 0,
-  "bookSourceUrl": "https://m.douhuawenxue.com",
-  "bookUrlPattern": "https?://m.douhuawenxue.com/novel-\\d+",
-  "customOrder": 25,
+  "bookSourceUrl": "https://m.shuhaige.net",
+  "bookUrlPattern": "https?://m.shuhaige.net/(shu_)?\\d+.(html)?",
+  "customOrder": 12,
   "enabled": true,
   "enabledCookieJar": true,
   "enabledExplore": true,
-  "exploreUrl": "最新::https://m.douhuawenxue.com/category/最新?bl={{page}}\n长篇::https://m.douhuawenxue.com/category/长篇?bl={{page}}\n现代::https://m.douhuawenxue.com/category/现代?bl={{page}}\n古代::https://m.douhuawenxue.com/category/古代?bl={{page}}\n未来::https://m.douhuawenxue.com/category/未来?bl={{page}}\n穿越::https://m.douhuawenxue.com/category/穿越?bl={{page}}\n架空::https://m.douhuawenxue.com/category/架空?bl={{page}}\n重生::https://m.douhuawenxue.com/category/重生?bl={{page}}\n快穿::https://m.douhuawenxue.com/category/快穿?bl={{page}}\n仙侠::https://m.douhuawenxue.com/category/仙侠?bl={{page}}\n剧情::https://m.douhuawenxue.com/category/剧情?bl={{page}}\ncp::https://m.douhuawenxue.com/category/无cp?bl={{page}}\n种田::https://m.douhuawenxue.com/category/种田?bl={{page}}",
+  "exploreUrl": "全部分类::/shuku/\n玄幻::/XuanHuan/\n奇幻::/QiHuan/\n武侠::/WuXia/\n都市::/DuShi/\n历史::/LiShi/\n军事::/JunShi/\n悬疑::/XuanYi/\n游戏::/YouXi/\n科幻::/KeHuan/\n体育::/TiYu/\n古言::/GuYan/\n现言::/XianYan/\n幻言::/HuanYan/\n仙侠::/XianXia/\n青春::/QinɡChun/\n穿越::/ChuanYue/\n女生::/NuShenɡ/\n其他::/QiTa/",
   "header": "{\"User-Agent\": \"Mozilla/5.0 (Linux; Android 9) Mobile Safari/537.36\"}",
-  "lastUpdateTime": 1699523043982,
-  "loginUrl": "https://m.douhuawenxue.com/login",
-  "respondTime": 57441,
+  "lastUpdateTime": 1698747342277,
+  "respondTime": 46861,
   "ruleBookInfo": {
     "author": "@get:{a}",
     "coverUrl": "@get:{c}",
-    "init": "@put:{n:\"[property$=book_name]@content\",\na:\"[property$=author]@content\",\nk:\"[property~=category|status|update_time]@content\",\nw:\".book_profile@ownText\",\nl:\"[property$=latest_chapter_name]@content\",\ni:\".summary_simple@ownText\",\nc:\"[property$=image]@content\",\nt:\"text.全部章节@href\"}",
-    "intro": "@get:{i}",
+    "init": "@put:{n:\"[property$=book_name]@content\",\na:\"[property$=author]@content\",\nk:\"[property~=category|status|update_time]@content\",\nw:\".detail span.-1@text\",\nl:\"[property$=latest_chapter_name]@content\",\ni:\"[property$=description]@content\",\nc:\"[property$=image]@content\",\nu:\"li.now a@href\"}",
+    "intro": "@get:{i}##.*观看小说:",
     "kind": "@get:{k}",
     "lastChapter": "@get:{l}",
     "name": "@get:{n}",
-    "tocUrl": "@get:{t}",
-    "wordCount": "@get:{w}##^\\s+|\\s+$"
+    "tocUrl": "@get:{u}",
+    "wordCount": "@get:{w}"
   },
   "ruleContent": {
-    "content": "@js:\nvar path=\".chapter_ct&&.read-rss\",\np=java.getElements(path);\np.select(\"span.hide\").remove();\np.html();",
-    "payAction": "{{baseUrl}}",
-    "replaceRegex": ""
+    "content": ".content p!-1@html",
+    "nextContentUrl": "text.下一页@href",
+    "replaceRegex": "##\\s*（本章.*）\\s*"
   },
   "ruleExplore": {},
   "ruleSearch": {
-    "author": ".book_author@text",
-    "bookList": ".book-list li",
-    "bookUrl": "a.1@href",
-    "checkKeyWord": "",
-    "coverUrl": "img@data-src",
-    "intro": ".book_ct@text",
-    "kind": ".book_tags a@text",
-    "name": "h4@text"
+    "author": "a.2@text",
+    "bookList": "ul.list li",
+    "bookUrl": "a.0@href",
+    "checkKeyWord": "剑来",
+    "coverUrl": "img@src",
+    "intro": "p.intro@text",
+    "kind": "span@text",
+    "lastChapter": "a.-1@text",
+    "name": "a.1@text"
   },
   "ruleToc": {
-    "chapterList": ".catalogue li a",
+    "chapterList": "ul.read li a",
     "chapterName": "text",
-    "chapterUrl": "href##$##,{'webView': true}",
-    "isVip": "span i@class"
+    "chapterUrl": "href",
+    "nextTocUrl": "option@value||text.下一页@href"
   },
-  "searchUrl": "https://m.douhuawenxue.com/search?keyword={{key}}&type=1",
+  "searchUrl": "/search.html,{\n  \"body\": \"searchkey={{key}}\",\n  \"method\": \"POST\"\n}",
   "weight": 0
 }

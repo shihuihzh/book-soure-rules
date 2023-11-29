@@ -213,7 +213,7 @@ export const analyzeDomStep = (step: string, isEnd: boolean = false) => {
 
 export const analyzeDomStepV2 = (step: string) => {
   const ruleRegex = /^-?(tag|class|id)\.(([^.\[]+)\.?($|[!\[\]\-\d,:]+$))/
-  const valueRegex = /^(text|textNodes|ownText|href|src|data-src|html|all|content)(##.*)?$/
+  const valueRegex = /^(text|textNodes|ownText|href|src|data-src|html|all|content|value)(##.*)?$/
   const extractIndexRegex = /(?=([.\[][!\[\]\-\d,:]+)$)/
 
   let tokens: string[] = []
@@ -373,4 +373,9 @@ export const analyzeUrl = (url: string, context: Record<string, unknown>): [stri
 export function arrayBufferToString(buffer: ArrayBuffer, encoding = 'utf-8') {
   const decoder = new TextDecoder(encoding)
   return decoder.decode(buffer)
+}
+
+export function arrayUniqueByKey(keyName: string, array: any[]) {
+  const arrayUniqueByKey = [...new Map(array.map((item) => [item[keyName], item])).values()]
+  return arrayUniqueByKey
 }
