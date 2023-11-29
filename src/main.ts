@@ -58,7 +58,8 @@ export class Source {
     for (let i = 0; i < size; i++) {
       const result: any = {}
       for (let j = 0; j < keys.length; j++) {
-        result[keys[j]] = ((rawResults[keys[j]]?.[i] as string) || '').trim()
+        const content = rawResults[keys[j]]?.[i] || ''
+        result[keys[j]] = (content instanceof Array ? content.join('') : content).trim()
       }
 
       r.push(result)
@@ -77,11 +78,11 @@ export class Source {
     const initRule = this.bookSource.ruleBookInfo.init?.trim()
     if (initRule) {
       // has init
-      let data: unknown = {}
       if (initRule.startsWith(':')) {
         // allInOneRegex
-        data = extractDataByAllInOneRule(result, initRule)
-        // TODO:
+        const data = extractDataByAllInOneRule(result, initRule)
+        bookInfo = this.makeResultDynamic(this.bookSource.ruleBookInfo, '', ['init'], (rule: string) => data[rule])
+
       } else if (initRule.startsWith('@put')) {
         // put
         const data = extractDataByPutRule(result, initRule)

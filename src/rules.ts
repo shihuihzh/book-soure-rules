@@ -1,10 +1,8 @@
 import { JSDOM } from 'jsdom'
 import xpath from 'xpath'
 import jp from 'jsonpath'
-import simpleEval from 'simple-eval'
 import {
   debug,
-  analyzeDomStep,
   makeIndexesFromRange,
   makeIndexesNonNegative,
   analyzeCssStep,
@@ -325,8 +323,21 @@ export function extractDataByRule(text: string, rule?: string): Array<string | s
   }
 }
 
-export function extractDataByAllInOneRule(text: string, rule: string): Record<string, string> {
-  return {}
+export function extractDataByAllInOneRule(text: string, rule: string): Record<string, Array<string>> {
+  const regex = new RegExp(rule.substring(1), 'g')
+  const result: Record<string, Array<string>> = {}
+  let rr
+  while ((rr = regex.exec(text))) {
+    const indexIndex = Object.keys(rr).indexOf('index')
+    for (let i = 1; i < indexIndex; i++) {
+      if (!result[`$${i}`]) {
+        result[`$${i}`] = []
+      }
+      result[`$${i}`].push(rr[i] || '')
+    }
+  }
+
+  return result
 }
 
 export function extractDataByPutRule(text: string, rule: string): Record<string, Array<string | string[]>> {

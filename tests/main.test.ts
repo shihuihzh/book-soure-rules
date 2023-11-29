@@ -1,7 +1,7 @@
 import { describe, expect, test } from '@jest/globals'
 import { Source } from '../src/main'
 import { BookSource } from '../src/types'
-import s from './test-sources/1.json'
+import s from './test-sources/2.json'
 
 describe('run test', () => {
   test.skip('test source search', async () => {
@@ -28,7 +28,8 @@ describe('run test', () => {
   }, 600_000)
 
   test('test source book content', async () => {
-    const url = '/102752/12317344.html'
+    // const url = '/102752/12317344.html'
+    const url = 'https://m.wfxs.tw/xs-1695036/du-150829910/'
     const source = s as unknown as BookSource
     const bookSource = new Source(source)
     const result = await bookSource.getBookContent(url, 'hello world')
