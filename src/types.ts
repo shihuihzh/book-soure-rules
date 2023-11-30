@@ -81,3 +81,14 @@ export type UrlOption = {
   js: string
   retry: number
 }
+
+export type JsContext = {
+  baseUrl?: string // 变量-当前url,String
+  result?: string | Array<string | string[]> // 变量-上一步的结果
+  book?: string // 变量-书籍类,方法见 io.legado.app.data.entities.Book
+  cookie?: string // 变量-cookie操作类,方法见 io.legado.app.help.http.CookieStore
+  cache?: string // 变量-缓存操作类,方法见 io.legado.app.help.CacheManager
+  chapter?: string // 变量-当前目录类,方法见 io.legado.app.data.entities.BookChapter
+  title?: string // 变量-当前标题,String
+  src?: string // 内容,源码
+}

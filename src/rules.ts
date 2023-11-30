@@ -1,14 +1,8 @@
 import { JSDOM } from 'jsdom'
 import xpath from 'xpath'
 import jp from 'jsonpath'
-import {
-  debug,
-  makeIndexesFromRange,
-  makeIndexesNonNegative,
-  analyzeCssStep,
-  analyzeDomStepV2,
-  queryTextParentElemByText,
-} from './utils'
+import { debug, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep, analyzeDomStepV2, queryTextParentElemByText } from './utils'
+import { JsContext } from './types'
 
 // dom
 const queryBySelector = (targetElements: Array<Node>, selector: string, reverse: boolean, filter: (e: Array<Node>) => Array<Node>) => {
@@ -51,7 +45,7 @@ export function extractDataByJSONRule(json: string, rule: string): Array<string 
   return jp.query(JSON.parse(json), `$.${r}`)
 }
 
-export function extractDataByXPath(html: string, rule: string): Array<string | string[]> {
+export function extractDataByXPath(html: string, rule: string, jsCtx?: JsContext): Array<string | string[]> {
   debug(`all XPath rule ${rule}`)
   const r = rule.replace(/@XPath:/gi, '').replace(/\/\//gi, '')
   const dom = new JSDOM(html)
@@ -107,22 +101,19 @@ export function extractDataByCSSRule(html: string, rule: string): Array<string |
     }
   }
 
-  return makeResult(targetElements, lastReplaceRegex, lastReplaceTargetStr)
+  // TODO: fix it
+  return makeResult(targetElements as Array<Node>, lastReplaceRegex, lastReplaceTargetStr)
 }
 
-export function extractDataByDomRule(html: string, rule: string): Array<string | string[]> {
+export function extractDataByDomRule(html: string, rule: string, listRuleStep?: string, jsCtx?: JsContext): Array<string> {
   const dom = new JSDOM(html)
   const doc = dom.window.document
 
-  const steps = rule.split('@')
+  const steps = rule.split('@').filter((e) => !!e)
   const emptyTextNode = doc.createTextNode('')
   debug(`all DOM rule steps: ${steps.join(', ')}`)
-  let targetElements: Array<Node> | Array<Node[]> = [doc]
 
-  let lastReplaceRegex,
-    lastReplaceTargetStr: string = ''
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i]
+  function runRule(step: string, targetElements: Array<Node>) {
     const stepAfterAnalyze = analyzeDomStepV2(step)
     const {
       type,
@@ -139,8 +130,7 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       rangeStep,
     } = stepAfterAnalyze
 
-    lastReplaceRegex = replaceRegex
-    lastReplaceTargetStr = replaceTargetStr
+    let js = ''
 
     const filterElements = (ie: Array<Node>) => {
       // include or exclude elements
@@ -195,9 +185,6 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
 
       // below are result case
       case 'textnodes':
-        targetElements = (targetElements as Node[]).map((e) => Array.from((e as Element).childNodes).filter((c) => c.nodeType === 3))
-        break
-
       case 'owntext':
         targetElements = (targetElements as Node[]).map((e) =>
           doc.createTextNode(
@@ -222,38 +209,67 @@ export function extractDataByDomRule(html: string, rule: string): Array<string |
       case 'all':
         // what's all means.
         break
+
+      case 'js':
+        js = selector
     }
 
-    if (targetElements.length === 0) {
-      // not found, break the loop
-      break
+    return {
+      targetElements,
+      replaceRegex,
+      replaceTargetStr,
+      js,
     }
   }
 
-  return makeResult(targetElements, lastReplaceRegex, lastReplaceTargetStr)
+  let rootElements: Array<Node> = !listRuleStep ? [doc] : runRule(listRuleStep, [doc]).targetElements
+  const result = rootElements.map((e) => {
+    let resultElements: Array<Node> = [e]
+    let lastReplaceRegex,
+      lastReplaceTargetStr,
+      js = ''
+    for (let i = 0; i < steps.length; i++) {
+      const result = runRule(steps[i], resultElements)
+      lastReplaceRegex = result.replaceRegex
+      lastReplaceRegex = result.replaceTargetStr
+      js = result.js
+      resultElements = result.targetElements
+
+      if (resultElements.length === 0) {
+        // not found, break the loop
+        break
+      }
+    }
+
+    return makeResult(resultElements, lastReplaceRegex, lastReplaceTargetStr, js, jsCtx)
+  })
+  
+  return !listRuleStep ? result.flat() : result.map(e => e.join(','))
 }
 
-function makeResult(targetElements: Array<Node> | Array<Node[]>, lastReplaceRegex?: string, lastReplaceTargetStr?: string) {
-  let result: Array<string | string[]> = []
+function makeResult(targetElements: Array<Node>, lastReplaceRegex?: string, lastReplaceTargetStr?: string, js: string = '', ctx: JsContext = {}) {
+  let result: Array<string> = []
   // all get `text`
-  result = targetElements.map((e) => (e instanceof Array ? e.map((ee) => ee.textContent || '') : e.textContent || ''))
+  result = targetElements.map((e) => e.textContent || '')
 
   // handle content
   if (lastReplaceRegex) {
     const regex = new RegExp(lastReplaceRegex, 'g')
-    result = result.map((r) => {
-      if (r instanceof Array) {
-        return r.map((rr) => rr.replace(regex, lastReplaceTargetStr || ''))
-      } else {
-        return r.replace(regex, lastReplaceTargetStr || '')
-      }
-    })
+    result = result.map((r) => r.replace(regex, lastReplaceTargetStr || ''))
+  }
+
+  if (js) {
+    if (result.length > 0) {
+      ctx.result = result
+    }
+    const script = `const {${Object.keys(ctx).join(',')}} = ${JSON.stringify(ctx)}; \n ${js}`
+    result = eval(script)
   }
 
   return result
 }
 
-export function extractDataByRule(text: string, rule?: string): Array<string | string[]> {
+export function extractDataByRule(text: string, rule?: string, listRule?: string, jsCtx?: JsContext): Array<string | string[]> {
   if (!rule || !text) {
     return []
   }
@@ -266,39 +282,49 @@ export function extractDataByRule(text: string, rule?: string): Array<string | s
     } else if (r.startsWith('@XPath') || r.startsWith('//')) {
       return extractDataByXPath(text, r)
     } else {
-      return extractDataByDomRule(text, r)
+      return extractDataByDomRule(text, r, listRule, jsCtx)
     }
   }
 
-  // replace all /n or /r to empty string
-  rule = rule.replace(/(\r\n|\n|\r)/gm, '')
   const splitRulesRegex = /(\|\||&&|%%)/g
-  let match = splitRulesRegex.exec(rule)
 
-  if (match) {
-    let group = []
-    let lastOper = match[1]
-    let lastIndex = match.index
-    let tempResult = runRule(rule.substring(0, lastIndex)) || []
-    while ((match = splitRulesRegex.exec(rule))) {
-      const r = runRule(rule.substring(lastIndex + 2, match.index))
+  if (rule.match(splitRulesRegex)) {
+    let match
+    let group: any[] = []
+    let lastOper = 'begin'
+    let nextStartIndex = 0
+    let tempResult: Array<string | string[]> = []
+
+    function calc(rule: string, endIndex: number) {
       switch (lastOper) {
         case '||':
-          if (tempResult.length === 0) tempResult = r
+          if (tempResult.length === 0) {
+            tempResult = runRule(rule.substring(nextStartIndex, endIndex))
+          }
           break
         case '&&':
+          const r = runRule(rule.substring(nextStartIndex, endIndex))
           r.forEach((e) => tempResult.push(e))
           break
         case '%%':
           // let it in group
-          group.push(r)
-          tempResult = []
+          group.push(tempResult)
+          tempResult = runRule(rule.substring(nextStartIndex, endIndex))
+          break
+        case 'begin':
+          tempResult = runRule(rule.substring(nextStartIndex, endIndex))
           break
       }
-
-      lastOper = match[1]
-      lastIndex = match.index
     }
+    
+    while ((match = splitRulesRegex.exec(rule))) {
+      calc(rule, match.index)
+      lastOper = match[1]
+      nextStartIndex = match.index + 2
+    }
+    
+    // run last 
+    calc(rule, rule.length)
 
     if (group.length > 0) {
       // need to `flat` result
@@ -340,13 +366,13 @@ export function extractDataByAllInOneRule(text: string, rule: string): Record<st
   return result
 }
 
-export function extractDataByPutRule(text: string, rule: string): Record<string, Array<string | string[]>> {
+export function extractDataByPutRule(text: string, rule: string, jsCtx?: JsContext): Record<string, Array<string | string[]>> {
   const ruleObj: any = eval(`var obj=${rule.slice(5)};obj`)
   const keys = Object.keys(ruleObj)
 
   return keys.reduce((result, key) => {
     const rule = ruleObj[key]
-    result[key] = extractDataByRule(text, rule)
+    result[key] = extractDataByRule(text, rule, '', jsCtx)
     return result
   }, {} as Record<string, Array<string | string[]>>)
 }

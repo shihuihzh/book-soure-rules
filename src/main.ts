@@ -1,6 +1,7 @@
 import { BookSource, SearchResult, UrlOption } from './types'
 import { extractDataByAllInOneRule, extractDataByGetRule, extractDataByPutRule, extractDataByRule, ruleRegexReplace } from './rules'
 import { analyzeUrl, arrayBufferToString, arrayUniqueByKey, debug } from './utils'
+import https from 'https'
 
 export class Source {
   constructor(public bookSource: BookSource) {}
@@ -18,39 +19,21 @@ export class Source {
     const result = await request(url, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
     // debug('search result test:' + result)
 
-    const searchResults: Partial<SearchResult>[] = []
-    const rawResults: Record<string, (string | string[])[]> = {}
-    const ruleOfBookList = this.bookSource.ruleSearch['bookList']?.trim()
+    const ruleOfBookList = this.bookSource.ruleSearch['bookList']?.trim() || ''
     const ignoreRules = ['checkKeyWord', 'bookList']
-
-    Object.keys(this.bookSource.ruleSearch)
-      .filter((e) => !ignoreRules.includes(e)) // no need
-      .forEach((ruleName: string) => {
-        rawResults[ruleName] = extractDataByRule(result, `${ruleOfBookList ? ruleOfBookList + '@' : ''}${this.bookSource.ruleSearch[ruleName]}`)
-      })
-
-    const size = rawResults['name'].length
-    const keys = Object.keys(rawResults)
-    for (let i = 0; i < size; i++) {
-      const result: Partial<SearchResult> = {}
-      for (let j = 0; j < keys.length; j++) {
-        result[keys[j]] = ((rawResults[keys[j]]?.[i] as string) || '').trim()
-      }
-
-      searchResults.push(result)
-    }
-
-    return searchResults
+    return this.makeResultDynamic(this.bookSource.ruleSearch, ruleOfBookList, ignoreRules, (rule, listRule) => {
+      return extractDataByRule(result, rule, listRule, { baseUrl: url, result, src: result })
+    })
   }
 
-  makeResultDynamic(rules: any, prefixRule: string, ignoreRules: string[], extractDataFunction: (rule: string) => any[]) {
+  makeResultDynamic(rules: any, listRule: string, ignoreRules: string[], extractDataFunction: (rule: string, listRule: string) => any[]) {
     const r: any[] = []
     const rawResults: Record<string, (string | string[])[]> = {}
 
     Object.keys(rules)
       .filter((e) => !ignoreRules.includes(e)) // no need
       .forEach((ruleName: string) => {
-        rawResults[ruleName] = extractDataFunction(`${prefixRule ? prefixRule + '@' : ''}${rules[ruleName]}`)
+        rawResults[ruleName] = extractDataFunction(rules[ruleName], listRule)
       })
 
     const size = Math.max(...Object.values(rawResults).map((e) => e.length))
@@ -82,10 +65,9 @@ export class Source {
         // allInOneRegex
         const data = extractDataByAllInOneRule(result, initRule)
         bookInfo = this.makeResultDynamic(this.bookSource.ruleBookInfo, '', ['init'], (rule: string) => data[rule])
-
       } else if (initRule.startsWith('@put')) {
         // put
-        const data = extractDataByPutRule(result, initRule)
+        const data = extractDataByPutRule(result, initRule, { baseUrl: url, result, src: result })
         bookInfo = this.makeResultDynamic(this.bookSource.ruleBookInfo, '', ['init'], (rule: string) => extractDataByGetRule(data, rule))
       }
     } else {
@@ -134,13 +116,15 @@ export class Source {
       const [u, options] = analyzeUrl(this.normalizeBookUrl(url), {})
       debug('calling TOC page url:' + u)
       const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
-      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleToc.nextTocUrl) as string[]
+      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleToc.nextTocUrl, '', { baseUrl: url, result: text, src: text }) as string[]
       return [tocPageUrls, text]
     }
 
     const results = await this.turnPage(tocUrl, tocPageData)
     const data = results.flatMap((result) =>
-      this.makeResultDynamic(this.bookSource.ruleToc, this.bookSource.ruleToc.chapterList || '', ignoreRules, (r) => extractDataByRule(result, r))
+      this.makeResultDynamic(this.bookSource.ruleToc, this.bookSource.ruleToc.chapterList || '', ignoreRules, (r, listRule) =>
+        extractDataByRule(result, r, listRule, { baseUrl: tocUrl, result: result, src: result })
+      )
     )
     return arrayUniqueByKey('chapterName', data)
   }
@@ -152,18 +136,26 @@ export class Source {
       const [u, options] = analyzeUrl(this.normalizeBookUrl(url), {})
       debug('calling content page url:' + u)
       const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
-      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleContent.nextContentUrl) as string[]
+      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleContent.nextContentUrl, '', {
+        baseUrl: url,
+        result: text,
+        src: text,
+      }) as string[]
       return [tocPageUrls, text]
     }
 
     const results = await this.turnPage(contentUrl, pageDate)
     const data = results
-        .flatMap((result) => this.makeResultDynamic(this.bookSource.ruleContent, '', ignoreRules, (r) => extractDataByRule(result, r)))
-        .map((e) => e.content)
+      .flatMap((result) =>
+        this.makeResultDynamic(this.bookSource.ruleContent, '', ignoreRules, (r, listRule) =>
+          extractDataByRule(result, r, listRule, { baseUrl: contentUrl, result, src: result })
+        )
+      )
+      .map((e) => e.content)
 
     return {
       title: data[0]?.title || title,
-      content: ruleRegexReplace(data, this.bookSource.ruleContent.replaceRegex)
+      content: ruleRegexReplace(data, this.bookSource.ruleContent.replaceRegex),
     }
   }
 }
@@ -178,6 +170,9 @@ async function request(url: string, headers?: Record<string, string>, options?: 
     method: options?.method || 'GET',
     headers: { ...defaultHeader, ...headers, ...(options?.headers || {}) },
     redirect: 'follow',
+    agent: new https.Agent({
+      rejectUnauthorized: false,
+    }),
   }
 
   if (options?.body) {

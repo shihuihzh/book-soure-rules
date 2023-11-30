@@ -54,28 +54,34 @@ export const analyzeCssStep = (step: string) => {
 export const analyzeDomStepV2 = (step: string) => {
   const ruleRegex = /^-?(tag|class|id|text)\.(([^.\[!]+)\.?($|[!\[\]\-\d,:]+$))/
   const valueRegex = /^(text|textNodes|ownText|href|src|data-src|html|all|content|value)(##.*)?$/
+  const jsRegex = /^(js):([\d\D]*)$/m
   const extractIndexRegex = /(?=([.\[!][!\[\]\-\d,:]+)$)/
 
   let tokens: string[] = []
   if (!valueRegex.test(step)) {
     const match = step.match(ruleRegex)
-    if (match) {
-      // full rule
-      tokens = [match[1], match[3], match[4]]
-    } else {
-      // simple rule or just index for children
-      const indexMatch = step.match(extractIndexRegex)
-      if (indexMatch) {
-        if (indexMatch.index === 0) {
-          // children
-          tokens = ['children', '', indexMatch[1]]
-        } else {
-          // css
-          tokens = [step.startsWith('children') ? 'children' : 'css', step.substring(0, indexMatch.index), indexMatch[1]]
-        }
+    const jsMatch = step.match(jsRegex)
+    if (!jsMatch) { // not js
+      if (match) {
+        // full rule
+        tokens = [match[1], match[3], match[4]]
       } else {
-        tokens = [step.startsWith('children') ? 'children' : 'css', step]
+        // simple rule or just index for children
+        const indexMatch = step.match(extractIndexRegex)
+        if (indexMatch) {
+          if (indexMatch.index === 0) {
+            // children
+            tokens = ['children', '', indexMatch[1]]
+          } else {
+            // css
+            tokens = [step.startsWith('children') ? 'children' : 'css', step.substring(0, indexMatch.index), indexMatch[1]]
+          }
+        } else {
+          tokens = [step.startsWith('children') ? 'children' : 'css', step]
+        }
       }
+    } else {
+        tokens = [jsMatch[1], jsMatch[2]]
     }
   } else {
     // get value
