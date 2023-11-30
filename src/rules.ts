@@ -160,7 +160,7 @@ export function extractDataByDomRule(html: string, rule: string, listRuleStep?: 
       return ie
     }
 
-    debug(`run DOM rule step: ${JSON.stringify(stepAfterAnalyze, null, 2)}`)
+    debug(`run DOM rule step: ${JSON.stringify(stepAfterAnalyze)}`)
 
     switch (type.toLowerCase()) {
       case 'class':

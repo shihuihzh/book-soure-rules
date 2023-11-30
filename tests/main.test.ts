@@ -19,15 +19,15 @@ describe('run test', () => {
     console.log(JSON.stringify(result, null, 2))
   }, 60_000)
 
-  test.skip('test source book toc', async () => {
-    const url = '/102752/'
+  test('test source book toc', async () => {
+    const url = '/265853/'
     const source = s as unknown as BookSource
     const bookSource = new Source(source)
     const result = await bookSource.getBookToc(url)
     console.log(JSON.stringify(result, null, 2))
   }, 600_000)
 
-  test('test source book content', async () => {
+  test.skip('test source book content', async () => {
     const url = '/102752/103131415.html'
     const source = s as unknown as BookSource
     const bookSource = new Source(source)
