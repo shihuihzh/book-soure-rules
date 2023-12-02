@@ -1,12 +1,21 @@
 import { BookSource, SearchResult, UrlOption } from './types'
 import { extractDataByAllInOneRule, extractDataByGetRule, extractDataByPutRule, extractDataByRule, ruleRegexReplace } from './rules'
-import { analyzeUrl, bufferToString, arrayUniqueByKey, debug, toArrayBuffer } from './utils'
+import { analyzeUrl, bufferToString, arrayUniqueByKey, debug, toArrayBuffer, webview } from './utils'
 import https from 'https'
+import http from 'http'
 import iconv from 'iconv-lite'
 
 // @ts-ignore
 import qsIconv from 'qs-iconv'
 import qs from 'qs'
+
+const httpAgent = new http.Agent({
+  keepAlive: true,
+})
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  rejectUnauthorized: false,
+})
 
 export class Source {
   constructor(public bookSource: BookSource) {}
@@ -171,31 +180,33 @@ async function request(url: string, headers?: Record<string, string>, options?: 
     'Accept-Language': 'zh-CN,zh;q=0.9',
   }
 
-  const reqOps: any = {
-    method: options?.method || 'GET',
-    headers: { ...defaultHeader, ...headers, ...(options?.headers || {}) },
-    redirect: 'follow',
-    agent: new https.Agent({
-      rejectUnauthorized: false,
-    }),
-  }
-
-  if (options?.body) {
-    const targetCharset = options.charset || 'utf-8'
-    if (options.type?.toLowerCase().includes('json')) {
-      reqOps.headers['Content-Type'] = 'application/json'
-      reqOps.body = toArrayBuffer(iconv.encode(JSON.stringify(options.body), targetCharset))
-    } else {
-      reqOps.headers['Content-Type'] = 'application/x-www-form-urlencoded'
-      reqOps.body = qs.stringify(qs.parse(options.body), {encoder: qsIconv.encoder(targetCharset)})
+  if (!options?.webView) {
+    const reqOps: any = {
+      method: options?.method || 'GET',
+      headers: { ...defaultHeader, ...headers, ...(options?.headers || {}) },
+      redirect: 'follow',
+      agent: url.toLowerCase().startsWith('https') ? httpsAgent : httpAgent,
     }
+
+    if (options?.body) {
+      const targetCharset = options.charset || 'utf-8'
+      if (options.type?.toLowerCase().includes('json')) {
+        reqOps.headers['Content-Type'] = 'application/json'
+        reqOps.body = toArrayBuffer(iconv.encode(JSON.stringify(options.body), targetCharset))
+      } else {
+        reqOps.headers['Content-Type'] = 'application/x-www-form-urlencoded'
+        reqOps.body = qs.stringify(qs.parse(options.body), { encoder: qsIconv.encoder(targetCharset) })
+      }
+    }
+
+    // console.log(`requesting: ${url}\n opts: ${JSON.stringify(reqOps, null, 2)}`)
+
+    const resp = await fetch(url, reqOps)
+    const respCharset = resp.headers.get('content-type')?.toLowerCase()?.split('charset=')[1]
+    return bufferToString(await resp.arrayBuffer(), options?.charset || respCharset || 'utf-8')
+  } else { // webview
+    return webview(url)
   }
-
-  // console.log(`requesting: ${url}\n opts: ${JSON.stringify(reqOps, null, 2)}`)
-
-  const resp = await fetch(url, reqOps)
-  const respCharset = resp.headers.get('content-type')?.toLowerCase()?.split('charset=')[1]
-  return bufferToString(await resp.arrayBuffer(), options?.charset || respCharset || 'utf-8')
 }
 
 // async function main() {

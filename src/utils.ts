@@ -1,3 +1,4 @@
+import puppeteer from 'puppeteer'
 import { UrlOption } from './types'
 import ivm from 'isolated-vm'
 const isolate = new ivm.Isolate({ memoryLimit: 128 })
@@ -224,12 +225,12 @@ export function bufferToString(buffer: ArrayBuffer | Buffer, encoding = 'utf-8')
 }
 
 export function toArrayBuffer(buffer: Buffer) {
-  var ab = new ArrayBuffer(buffer.length);
-  var view = new Uint8Array(ab);
+  var ab = new ArrayBuffer(buffer.length)
+  var view = new Uint8Array(ab)
   for (var i = 0; i < buffer.length; ++i) {
-      view[i] = buffer[i];
+    view[i] = buffer[i]
   }
-  return ab;
+  return ab
 }
 
 export function arrayUniqueByKey(keyName: string, array: any[]) {
@@ -247,4 +248,17 @@ export function runJs(code: string, context: any) {
   return vmContext.evalSync(script, {
     copy: true,
   })
+}
+
+export async function webview(url: string, options: any = {}) {
+  const browser = await puppeteer.launch()
+  const page = await browser.newPage()
+  const defaultTimeout = 5_000
+
+  await page.goto(url)
+  await page.setViewport({ width: 1080, height: 1024 })
+  await new Promise((r) => setTimeout(r, defaultTimeout))
+  const text = await page.content()
+  await browser.close()
+  return text
 }

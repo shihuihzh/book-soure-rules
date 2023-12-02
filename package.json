@@ -25,6 +25,7 @@
     "jsdom": "^22.1.0",
     "jsonpath": "^1.1.1",
     "node-fetch": "^3.3.2",
+    "puppeteer": "^21.5.2",
     "qs": "^6.11.2",
     "qs-iconv": "^1.0.4",
     "urlencode": "^2.0.0",
