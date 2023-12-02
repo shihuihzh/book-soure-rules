@@ -1,7 +1,12 @@
 import { BookSource, SearchResult, UrlOption } from './types'
 import { extractDataByAllInOneRule, extractDataByGetRule, extractDataByPutRule, extractDataByRule, ruleRegexReplace } from './rules'
-import { analyzeUrl, arrayBufferToString, arrayUniqueByKey, debug } from './utils'
+import { analyzeUrl, bufferToString, arrayUniqueByKey, debug, toArrayBuffer } from './utils'
 import https from 'https'
+import iconv from 'iconv-lite'
+
+// @ts-ignore
+import qsIconv from 'qs-iconv'
+import qs from 'qs'
 
 export class Source {
   constructor(public bookSource: BookSource) {}
@@ -116,7 +121,7 @@ export class Source {
       const [u, options] = analyzeUrl(this.normalizeBookUrl(url), {})
       debug('calling TOC page url:' + u)
       const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
-      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleToc.nextTocUrl, '', { baseUrl: url, result: text, src: text }) as string[]
+      const tocPageUrls = extractDataByRule(text, this.bookSource.ruleToc.nextTocUrl, '', { baseUrl: tocUrl, result: text, src: text }) as string[]
       return [tocPageUrls, text]
     }
 
@@ -137,7 +142,7 @@ export class Source {
       debug('calling content page url:' + u)
       const text = await request(u, this.bookSource.header ? JSON.parse(this.bookSource.header) : {}, options)
       const tocPageUrls = extractDataByRule(text, this.bookSource.ruleContent.nextContentUrl, '', {
-        baseUrl: url,
+        baseUrl: contentUrl,
         result: text,
         src: text,
       }) as string[]
@@ -176,19 +181,21 @@ async function request(url: string, headers?: Record<string, string>, options?: 
   }
 
   if (options?.body) {
+    const targetCharset = options.charset || 'utf-8'
     if (options.type?.toLowerCase().includes('json')) {
-      reqOps.body = JSON.stringify(options.body)
       reqOps.headers['Content-Type'] = 'application/json'
+      reqOps.body = toArrayBuffer(iconv.encode(JSON.stringify(options.body), targetCharset))
     } else {
-      reqOps.body = encodeURI(options.body)
       reqOps.headers['Content-Type'] = 'application/x-www-form-urlencoded'
+      reqOps.body = qs.stringify(qs.parse(options.body), {encoder: qsIconv.encoder(targetCharset)})
     }
   }
 
   // console.log(`requesting: ${url}\n opts: ${JSON.stringify(reqOps, null, 2)}`)
 
   const resp = await fetch(url, reqOps)
-  return arrayBufferToString(await resp.arrayBuffer(), options?.charset || 'utf-8')
+  const respCharset = resp.headers.get('content-type')?.toLowerCase()?.split('charset=')[1]
+  return bufferToString(await resp.arrayBuffer(), options?.charset || respCharset || 'utf-8')
 }
 
 // async function main() {

@@ -1,7 +1,7 @@
 import { JSDOM } from 'jsdom'
 import xpath from 'xpath'
 import jp from 'jsonpath'
-import { debug, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep, analyzeDomStepV2, queryTextParentElemByText } from './utils'
+import { debug, makeIndexesFromRange, makeIndexesNonNegative, analyzeCssStep, analyzeDomStepV2, queryTextParentElemByText, runJs } from './utils'
 import { JsContext } from './types'
 
 // dom
@@ -244,7 +244,7 @@ export function extractDataByDomRule(html: string, rule: string, listRuleStep?: 
     return makeResult(resultElements, lastReplaceRegex, lastReplaceTargetStr, js, jsCtx)
   })
   
-  return !listRuleStep ? result.flat() : result.map(e => e.join(','))
+  return !listRuleStep ? result.flat() : result.map(e => e instanceof Array ? e.join(',') : e)
 }
 
 function makeResult(targetElements: Array<Node>, lastReplaceRegex?: string, lastReplaceTargetStr?: string, js: string = '', ctx: JsContext = {}) {
@@ -262,8 +262,7 @@ function makeResult(targetElements: Array<Node>, lastReplaceRegex?: string, last
     if (result.length > 0) {
       ctx.result = result
     }
-    const script = `const {${Object.keys(ctx).join(',')}} = ${JSON.stringify(ctx)}; \n ${js}`
-    result = eval(script)
+    result = runJs(js, ctx)
   }
 
   return result

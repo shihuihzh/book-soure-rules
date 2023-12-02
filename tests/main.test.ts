@@ -2,10 +2,11 @@ import { describe, expect, test } from '@jest/globals'
 import { Source } from '../src/main'
 import { BookSource } from '../src/types'
 import s from './test-sources/1.json'
+import s3 from './test-sources/3.json'
 
 describe('run test', () => {
-  test.skip('test source search', async () => {
-    const source = s as unknown as BookSource
+  test('test source search', async () => {
+    const source = s3 as unknown as BookSource
     const bookSource = new Source(source)
     const result = await bookSource.search(source.ruleSearch.checkKeyWord || '我的')
     console.log(JSON.stringify(result, null, 2))
@@ -19,9 +20,17 @@ describe('run test', () => {
     console.log(JSON.stringify(result, null, 2))
   }, 60_000)
 
-  test('test source book toc', async () => {
+  test.skip('test source book toc', async () => {
     const url = '/265853/'
     const source = s as unknown as BookSource
+    const bookSource = new Source(source)
+    const result = await bookSource.getBookToc(url)
+    console.log(JSON.stringify(result, null, 2))
+  }, 600_000)
+
+  test.skip('test source book toc (js)', async () => {
+    const url = 'https://www.yipinxia.co/25/25902_1/'
+    const source = s3 as unknown as BookSource
     const bookSource = new Source(source)
     const result = await bookSource.getBookToc(url)
     console.log(JSON.stringify(result, null, 2))

@@ -1,5 +1,6 @@
 import { UrlOption } from './types'
-import simpleEval from 'simple-eval'
+import ivm from 'isolated-vm'
+const isolate = new ivm.Isolate({ memoryLimit: 128 })
 
 export function debug(log: string) {
   console.log(log)
@@ -61,7 +62,8 @@ export const analyzeDomStepV2 = (step: string) => {
   if (!valueRegex.test(step)) {
     const match = step.match(ruleRegex)
     const jsMatch = step.match(jsRegex)
-    if (!jsMatch) { // not js
+    if (!jsMatch) {
+      // not js
       if (match) {
         // full rule
         tokens = [match[1], match[3], match[4]]
@@ -81,7 +83,7 @@ export const analyzeDomStepV2 = (step: string) => {
         }
       }
     } else {
-        tokens = [jsMatch[1], jsMatch[2]]
+      tokens = [jsMatch[1], jsMatch[2]]
     }
   } else {
     // get value
@@ -201,7 +203,7 @@ const evalCurryBraceExp = (code: string, context: Record<string, unknown>) => {
   const match = code.match(/{{(.*?)}}/g)
   const target =
     match?.reduce((acc, cur) => {
-      const evalResult = simpleEval(cur.slice(2, -2), context)
+      const evalResult = runJs(cur.slice(2, -2), context)
       return acc.replaceAll(cur, evalResult as string)
     }, code) || code
 
@@ -216,12 +218,33 @@ export const analyzeUrl = (url: string, context: Record<string, unknown>): [stri
   return [evalCurryBraceExp(originUrl, context), JSON.parse(evalCurryBraceExp(originOptions, context))]
 }
 
-export function arrayBufferToString(buffer: ArrayBuffer, encoding = 'utf-8') {
+export function bufferToString(buffer: ArrayBuffer | Buffer, encoding = 'utf-8') {
   const decoder = new TextDecoder(encoding)
   return decoder.decode(buffer)
+}
+
+export function toArrayBuffer(buffer: Buffer) {
+  var ab = new ArrayBuffer(buffer.length);
+  var view = new Uint8Array(ab);
+  for (var i = 0; i < buffer.length; ++i) {
+      view[i] = buffer[i];
+  }
+  return ab;
 }
 
 export function arrayUniqueByKey(keyName: string, array: any[]) {
   const arrayUniqueByKey = [...new Map(array.map((item) => [item[keyName], item])).values()]
   return arrayUniqueByKey
+}
+
+export function runJs(code: string, context: any) {
+  const vmContext = isolate.createContextSync()
+  // const jail = vmContext.global
+  // jail.setSync('global', jail.derefInto())
+  // Object.keys(context).forEach(k => jail.setSync(k, context[k]))
+  // jail.setSync('jsCtx', new ivm.ExternalCopy(context))
+  const script = `const {${Object.keys(context).join(',')}} = ${JSON.stringify(context)}; \n ${code}`
+  return vmContext.evalSync(script, {
+    copy: true,
+  })
 }
